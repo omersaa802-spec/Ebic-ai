@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Game Space</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background-color: #030712;
+            color: #ffffff;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* FULLSCREEN VIDEO INTRO OVERLAY */
+        #intro-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000;
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease;
+        }
+
+        #intro-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #skip-btn {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            background: rgba(0, 240, 255, 0.15);
+            border: 1px solid #00f0ff;
+            color: #00f0ff;
+            padding: 10px 22px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            letter-spacing: 1.5px;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+            transition: 0.2s;
+        }
+
+        #skip-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* MAIN HUD CONTAINER */
+        .game-space {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at 20% 50%, #0d1527 0%, #030712 70%);
+            display: grid;
+            grid-template-columns: 140px 1fr 200px;
+            grid-template-rows: 50px 1fr 50px;
+            padding: 15px 25px;
+            gap: 10px;
+        }
+
+        /* TOP STATUS BAR */
+        .top-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+            padding-bottom: 10px;
+            font-size: 12px;
+            letter-spacing: 1px;
+            color: #8c9bae;
+        }
+
+        .status-items {
+            display: flex;
+            gap: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-value {
+            color: #00f0ff;
+            font-weight: bold;
+        }
+
+        /* LEFT SIDEBAR - HIGH BOOST */
+        .left-panel {
+            grid-column: 1;
+            grid-row: 2 / 4;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .boost-badge {
+            background: linear-gradient(180deg, rgba(255, 42, 95, 0.2) 0%, rgba(0, 240, 255, 0.1) 100%);
+            border: 1px solid #00f0ff;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .boost-badge:active {
+            transform: scale(0.95);
+        }
+
+        .boost-title {
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            color: #00f0ff;
+            writing-mode: vertical-rl;
+            text-transform: uppercase;
+            transform: rotate(180deg);
+        }
+
+        /* CENTER DISPLAY - 3D CARD STACK */
+        .center-stage {
+            grid-column: 2;
+            grid-row: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            perspective: 1000px;
+        }
+
+        .game-card-3d {
+            position: relative;
+            width: 320px;
+            height: 200px;
+            background: linear-gradient(135deg, rgba(21, 31, 56, 0.9), rgba(11, 16, 29, 0.95));
+            border: 1.5px solid #00f0ff;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.25), inset 0 0 15px rgba(0, 240, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            transform-style: preserve-3d;
+            transform: rotateY(-10deg) rotateX(5deg);
+        }
+
+        .game-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .game-icon-large {
+            width: 55px;
+            height: 55px;
+            border-radius: 14px;
+            background: #1e293b;
+            border: 1px solid #00f0ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: #00f0ff;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+        }
+
+        .game-meta h3 {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .game-meta p {
+            font-size: 11px;
+            color: #8c9bae;
+            margin-top: 3px;
+        }
+
+        .feature-tags {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .tag {
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            color: #00f0ff;
+        }
+
+        .start-btn {
+            background: linear-gradient(90deg, #00f0ff, #0066ff);
+            border: none;
+            color: #030712;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 14px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+            transition: 0.2s;
+        }
+
+        .start-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* RIGHT PANEL - CIRCULAR HUD GAUGES */
+        .right-panel {
+            grid-column: 3;
+            grid-row: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 15px;
+        }
+
+        .gauge-card {
+            width: 140px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            border-radius: 16px;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .gauge-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #00f0ff;
+            border-top-color: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: #00f0ff;
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.2);
+        }
+
+        .gauge-info span {
+            font-size: 10px;
+            color: #8c9bae;
+            display: block;
+        }
+
+        .gauge-info h4 {
+            font-size: 13px;
+            color: #ffffff;
+        }
+
+        /* BOTTOM BAR - CONTROLS */
+        .bottom-bar {
+            grid-column: 2 / -1;
+            grid-row: 3;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 12px;
+            color: #00f0ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- FULLSCREEN INTRO VIDEO -->
+    <div id="intro-container">
+        <video id="intro-video" autoplay muted playsinline>
+            <source src="intro.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <button id="skip-btn" onclick="skipIntro()">SKIP ➔</button>
+    </div>
+
+    <!-- MAIN GAME SPACE UI -->
+    <div class="game-space">
+        <div class="top-bar">
+            <div class="status-items">
+                <div class="status-item">TEMP: <span class="status-value">37.0°C</span></div>
+                <div class="status-item">TIME: <span class="status-value">13h 46m</span></div>
+                <div class="status-item">NETWORK: <span class="status-value">5G / OK</span></div>
+            </div>
+            <div>TECNO GAME SPACE</div>
+        </div>
+
+        <div class="left-panel">
+            <div class="boost-badge" onclick="triggerBoost()">
+                <div class="boost-title">⚡ HIGH BOOST</div>
+            </div>
+        </div>
+
+        <div class="center-stage">
+            <div class="game-card-3d" id="current-card">
+                <div>
+                    <div class="game-info">
+                        <div class="game-icon-large" id="game-icon">MC</div>
+                        <div class="game-meta">
+                            <h3 id="game-title">Minecraft</h3>
+                            <p id="game-time">PLAYTIME: 0s</p>
+                        </div>
+                    </div>
+                    <div class="feature-tags">
+                        <span class="tag">Esports Pro</span>
+                        <span class="tag">Smart Frame</span>
+                        <span class="tag">Graphic Opt</span>
+                    </div>
+                </div>
+                <button class="start-btn" onclick="launchCurrentGame()">START GAME</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="gauge-card">
+                <div class="gauge-info">
+                    <span>CPU LOAD</span>
+                    <h4 id="cpu-val">75%</h4>
+                </div>
+                <div class="gauge-circle">CPU</div>
+            </div>
+            <div class="gauge-card">
+                <div class="gauge-info">
+                    <span>GPU LOAD</span>
+                    <h4 id="gpu-val">60%</h4>
+                </div>
+                <div class="gauge-circle">GPU</div>
+            </div>
+            <div class="gauge-card">
+                <div class="gauge-info">
+                    <span>RAM USED</span>
+                    <h4 id="ram-val">5.2 GB</h4>
+                </div>
+                <div class="gauge-circle">RAM</div>
+            </div>
+        </div>
+
+        <div class="bottom-bar">
+            <div class="icon-btn" onclick="nextGame()">➔</div>
+            <div class="icon-btn">⚙️</div>
+            <div class="icon-btn">+</div>
+        </div>
+    </div>
+
+    <script>
+        // Intro video transition logic
+        const introContainer = document.getElementById('intro-container');
+        const introVideo = document.getElementById('intro-video');
+
+        document.addEventListener('click', function enableAudio() {
+            if(introVideo) introVideo.muted = false;
+            document.removeEventListener('click', enableAudio);
+        }, { once: true });
+
+        if(introVideo) {
+            introVideo.onended = function() {
+                skipIntro();
+            };
+        }
+
+        function skipIntro() {
+            introContainer.style.opacity = '0';
+            setTimeout(() => {
+                introContainer.style.display = 'none';
+            }, 500);
+        }
+
+        // Game switcher state
+        const games = [
+            { title: "Minecraft", icon: "MC", tag: "Bedrock" },
+            { title: "Farlight 84", icon: "F84", tag: "Stretched 4:3" },
+            { title: "PUBG Mobile", icon: "PUBG", tag: "Hip-Fire King" },
+            { title: "Subway Surfers", icon: "SS", tag: "High Score" }
+        ];
+
+        let currentGameIdx = 0;
+
+        function nextGame() {
+            currentGameIdx = (currentGameIdx + 1) % games.length;
+            const game = games[currentGameIdx];
+            document.getElementById('game-title').innerText = game.title;
+            document.getElementById('game-icon').innerText = game.icon;
+        }
+
+        function launchCurrentGame() {
+            alert("Launching " + games[currentGameIdx].title + " with High Boost active!");
+        }
+
+        function triggerBoost() {
+            alert("System Memory Cleaned! High Performance Mode Active.");
+        }
+    </script>
+</body>
+</html>
