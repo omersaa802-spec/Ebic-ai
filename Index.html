@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>EBIC 3D TPV Tactical Shooter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Rajdhani:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Rajdhani', sans-serif; }
+
+    #game-view { width: 100vw; height: 100vh; display: block; }
+
+    /* HUD OVERLAY */
+    .hud-layer {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; display: flex; flex-direction: column; justify-space-between;
+    }
+
+    /* TOP BAR */
+    .top-bar {
+      padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;
+      background: linear-gradient(180deg, rgba(0,0,0,0.8), transparent);
+    }
+    .brand { font-family: 'Orbitron'; color: #00f2fe; font-size: 1.1rem; text-shadow: 0 0 10px #00f2fe; }
+    .stats { font-family: 'Orbitron'; color: #ffd700; font-size: 1rem; display: flex; gap: 15px; }
+
+    /* ON-SCREEN MOBILE TOUCH CONTROLS */
+    .touch-btn {
+      position: absolute; pointer-events: auto; background: rgba(15, 23, 42, 0.65);
+      border: 2px solid rgba(0, 242, 254, 0.5); border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; color: #fff; font-family: 'Orbitron';
+      font-weight: 900; backdrop-filter: blur(4px); transition: transform 0.1s;
+    }
+    .touch-btn:active { transform: scale(0.9); background: rgba(0, 242, 254, 0.4); }
+
+    /* DEFAULT BUTTON POSITIONS (ADJUSTABLE IN SETTINGS) */
+    #fire-btn { width: 75px; height: 75px; right: 30px; bottom: 80px; border-color: #ff0055; background: rgba(255, 0, 85, 0.3); }
+    #slide-btn { width: 60px; height: 60px; right: 120px; bottom: 30px; border-color: #00f2fe; }
+    #jump-btn { width: 60px; height: 60px; right: 30px; bottom: 175px; border-color: #ffd700; }
+    #ads-btn { width: 65px; height: 65px; right: 120px; bottom: 110px; border-color: #9d4edd; }
+
+    /* SETTINGS MODAL */
+    .modal {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 85%; max-width: 420px; background: rgba(10, 15, 30, 0.95); border: 1px solid #00f2fe;
+      border-radius: 12px; padding: 20px; color: #fff; display: none; pointer-events: auto;
+      box-shadow: 0 0 20px rgba(0,242,254,0.3);
+    }
+    .modal-title { font-family: 'Orbitron'; color: #00f2fe; margin-bottom: 15px; text-align: center; }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
+    .btn-close {
+      width: 100%; padding: 10px; background: #ff0055; border: none; border-radius: 6px;
+      color: #fff; font-family: 'Orbitron'; margin-top: 15px; cursor: pointer;
+    }
+
+    /* CROSSHAIR */
+    .crosshair {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 10px; height: 10px; border: 2px solid rgba(0, 242, 254, 0.8); border-radius: 50%;
+      pointer-events: none;
+    }
+  </style>
+  <!-- 3D ENGINE LIBRARY (Three.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <canvas id="game-view"></canvas>
+  <div class="crosshair"></div>
+
+  <div class="hud-layer">
+    <div class="top-bar">
+      <div class="brand">EBIC TPV 3D</div>
+      <div class="stats">
+        <span>KILLS: <span id="k-count">0</span></span>
+        <span>🪙 <span id="c-count">300</span></span>
+        <span style="cursor:pointer; pointer-events:auto;" onclick="toggleSettings()">⚙️</span>
+      </div>
+    </div>
+
+    <!-- TOUCH CONTROLS -->
+    <div class="touch-btn" id="fire-btn">FIRE</div>
+    <div class="touch-btn" id="slide-btn">SLIDE</div>
+    <div class="touch-btn" id="jump-btn">JUMP</div>
+    <div class="touch-btn" id="ads-btn">ADS</div>
+  </div>
+
+  <!-- SETTINGS DIALOG -->
+  <div class="modal" id="settings-modal">
+    <div class="modal-title">SYSTEM SETTINGS</div>
+    
+    <div class="setting-row">
+      <span>Gyroscope Aiming</span>
+      <input type="checkbox" id="gyro-toggle" onchange="toggleGyro(this.checked)">
+    </div>
+
+    <div class="setting-row">
+      <span>Fire Button Scale</span>
+      <input type="range" min="50" max="110" value="75" oninput="adjustButtonSize('fire-btn', this.value)">
+    </div>
+
+    <div class="setting-row">
+      <span>Evo Weapon Aura</span>
+      <span style="color: #00f2fe;">LVL 3 NEON</span>
+    </div>
+
+    <button class="btn-close" onclick="toggleSettings()">SAVE & CLOSE</button>
+  </div>
+
+  <script>
+    // --- 3D ENVIRONMENT & TPV CAMERA SETUP ---
+    let scene, camera, renderer, playerMesh, gunMesh;
+    let isSliding = false;
+    let kills = 0, cash = 300;
+    let gyroEnabled = false;
+
+    function init3D() {
+      const container = document.getElementById('game-view');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0f1d);
+      scene.fog = new THREE.FogExp2(0x0a0f1d, 0.015);
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+      renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      const dirLight = new THREE.DirectionalLight(0x00f2fe, 0.8);
+      dirLight.position.set(20, 40, 20);
+      scene.add(dirLight);
+
+      // Floor Grid (Tactical Ground)
+      const grid = new THREE.GridHelper(200, 40, 0x00f2fe, 0x1e293b);
+      scene.add(grid);
+
+      // Player Character (TPV Capsule/Mesh)
+      const pGeo = new THREE.CylinderGeometry(0.8, 0.8, 2.4, 16);
+      const pMat = new THREE.MeshStandardMaterial({ color: 0x0088ff, roughness: 0.3 });
+      playerMesh = new THREE.Mesh(pGeo, pMat);
+      playerMesh.position.y = 1.2;
+      scene.add(playerMesh);
+
+      // Evo Weapon Model (Attached to Player)
+      const gGeo = new THREE.BoxGeometry(0.3, 0.3, 1.2);
+      const gMat = new THREE.MeshStandardMaterial({ color: 0xff0055, emissive: 0xff0055, emissiveIntensity: 0.5 });
+      gunMesh = new THREE.Mesh(gGeo, gMat);
+      gunMesh.position.set(0.6, 0.4, -0.6);
+      playerMesh.add(gunMesh);
+
+      // Camera TPV Offset (Positioned behind player shoulder)
+      camera.position.set(0, 3, 5);
+      camera.lookAt(playerMesh.position);
+
+      window.addEventListener('resize', onWindowResize);
+      animate();
+    }
+
+    // --- CONTROLS & SLIDE MECHANIC ---
+    document.getElementById('slide-btn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (!isSliding) {
+        isSliding = true;
+        // Drop character height and slide forward fast
+        playerMesh.scale.set(1, 0.4, 1);
+        playerMesh.position.z -= 4;
+
+        setTimeout(() => {
+          playerMesh.scale.set(1, 1, 1);
+          isSliding = false;
+        }, 600);
+      }
+    });
+
+    document.getElementById('fire-btn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      kills++;
+      cash += 50;
+      document.getElementById('k-count').textContent = kills;
+      document.getElementById('c-count').textContent = cash;
+
+      // Weapon recoil animation
+      gunMesh.position.z += 0.2;
+      setTimeout(() => gunMesh.position.z -= 0.2, 80);
+    });
+
+    // --- GYROSCOPE AIMING HOOK ---
+    function toggleGyro(state) {
+      gyroEnabled = state;
+      if (gyroEnabled && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().catch(console.error);
+      }
+    }
+
+    window.addEventListener('deviceorientation', (e) => {
+      if (!gyroEnabled || !playerMesh) return;
+      // Tilt phone left/right to rotate player view
+      if (e.gamma) playerMesh.rotation.y = e.gamma * (Math.PI / 180);
+    });
+
+    // --- HUD CUSTOMIZATION ---
+    function adjustButtonSize(btnId, val) {
+      const btn = document.getElementById(btnId);
+      btn.style.width = val + 'px';
+      btn.style.height = val + 'px';
+    }
+
+    function toggleSettings() {
+      const modal = document.getElementById('settings-modal');
+      modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      // Smoothly track TPV camera behind player
+      camera.position.x = playerMesh.position.x;
+      camera.position.z = playerMesh.position.z + 5;
+      renderer.render(scene, camera);
+    }
+
+    init3D();
+  </script>
+</body>
+</html>
